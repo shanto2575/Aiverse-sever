@@ -1,5 +1,5 @@
 const dns = require('node:dns');
-dns.setServers(['1.1.1.1', '1.0.0.1']); 
+dns.setServers(['1.1.1.1', '1.0.0.1']);
 
 const express = require("express");
 const dontenv = require("dotenv");
@@ -31,9 +31,24 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     await client.connect();
-    const db = client.db("tech-bazaar");
+    const db = client.db("Aiverse");
+    const promptsCollection = db.collection("prompts");
 
- 
+    //........user.......
+
+    app.get('/api/prompts/:email',async(req,res)=>{
+      const {email}=req.params;
+      const result=await promptsCollection.find({userEmail:email}).toArray()
+      res.json(result)
+    })
+
+    app.post("/api/prompts", async (req, res) => {
+      const data = req.body;
+      const result = await promptsCollection.insertOne(data);
+      res.json(result);
+    });
+
+
 
     await client.db("admin").command({ ping: 1 });
     console.log(
