@@ -48,6 +48,18 @@ async function run() {
       res.json(result);
     });
 
+    app.patch('/api/prompts/:id',async(req,res)=>{
+      const {id}=req.params;
+      const data=req.body;
+      const result=await promptsCollection.updateOne(
+        {_id:new ObjectId(id)},
+        {$set:{
+          ...data,
+        }}
+      )
+      res.json(result)
+    })
+
 
 
     await client.db("admin").command({ ping: 1 });
