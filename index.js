@@ -33,17 +33,29 @@ async function run() {
     await client.connect();
     const db = client.db("Aiverse");
     const promptsCollection = db.collection("prompts");
-    const userCollection=db.collection('user')
-    const paymentsCollection=db.collection('payments')
+    const userCollection = db.collection('user')
+    const paymentsCollection = db.collection('payments')
 
     //........user.......
-    app.get('/api/user',async(req,res)=>{
-      const result=await userCollection.find
+    app.get('/api/user', async (req, res) => {
+      const result = await userCollection.find
     })
 
-    app.get('/api/prompts/:email',async(req,res)=>{
-      const {email}=req.params;
-      const result=await promptsCollection.find({userEmail:email}).toArray()
+    //......prompts......
+
+    app.get('/api/prompts', async (req, res) => {
+      const result = await promptsCollection.find().toArray()
+      res.json(result)
+    })
+    app.get('/api/single-prompts/:id', async (req, res) => {
+      const { id } = req.params;
+      const result = await promptsCollection.findOne({ _id: new ObjectId(id) })
+      res.json(result)
+    })
+
+    app.get('/api/prompts/:email', async (req, res) => {
+      const { email } = req.params;
+      const result = await promptsCollection.find({ userEmail: email }).toArray()
       res.json(result)
     })
 
@@ -53,31 +65,35 @@ async function run() {
       res.json(result);
     });
 
-    app.patch('/api/prompts/:id',async(req,res)=>{
-      const {id}=req.params;
-      const data=req.body;
-      const result=await promptsCollection.updateOne(
-        {_id:new ObjectId(id)},
-        {$set:{
-          ...data,
-        }}
+    app.patch('/api/prompts/:id', async (req, res) => {
+      const { id } = req.params;
+      const data = req.body;
+      const result = await promptsCollection.updateOne(
+        { _id: new ObjectId(id) },
+        {
+          $set: {
+            ...data,
+          }
+        }
       )
       res.json(result)
     })
 
-    app.delete('/api/prompts/:id',async(req,res)=>{
-      const {id}=req.params;
-      const result=await promptsCollection.deleteOne({_id:new ObjectId(id)})
+    app.delete('/api/prompts/:id', async (req, res) => {
+      const { id } = req.params;
+      const result = await promptsCollection.deleteOne({ _id: new ObjectId(id) })
       res.json(result)
     })
 
-    app.patch('/api/user/upgrade-primium/:email',async(req,res)=>{
-      const {email}=req.params;
-      const result=await userCollection.updateOne(
-        {email},
-        {$set:{
-          plan:'pro'
-        }}
+    app.patch('/api/user/upgrade-primium/:email', async (req, res) => {
+      const { email } = req.params;
+      const result = await userCollection.updateOne(
+        { email },
+        {
+          $set: {
+            plan: 'pro'
+          }
+        }
       )
       res.json(result)
     })
