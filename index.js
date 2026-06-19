@@ -33,8 +33,13 @@ async function run() {
     await client.connect();
     const db = client.db("Aiverse");
     const promptsCollection = db.collection("prompts");
+    const userCollection=db.collection('user')
+    const paymentsCollection=db.collection('payments')
 
     //........user.......
+    app.get('/api/user',async(req,res)=>{
+      const result=await userCollection.find
+    })
 
     app.get('/api/prompts/:email',async(req,res)=>{
       const {email}=req.params;
@@ -63,6 +68,17 @@ async function run() {
     app.delete('/api/prompts/:id',async(req,res)=>{
       const {id}=req.params;
       const result=await promptsCollection.deleteOne({_id:new ObjectId(id)})
+      res.json(result)
+    })
+
+    app.patch('/api/user/upgrade-primium/:email',async(req,res)=>{
+      const {email}=req.params;
+      const result=await userCollection.updateOne(
+        {email},
+        {$set:{
+          plan:'pro'
+        }}
+      )
       res.json(result)
     })
 
