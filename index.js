@@ -34,7 +34,7 @@ async function run() {
     const db = client.db("Aiverse");
     const promptsCollection = db.collection("prompts");
     const userCollection = db.collection('user')
-    const paymentsCollection = db.collection('payments')
+    const subscriptionsCollection = db.collection('payments')
 
     //........user.......
     app.get('/api/user', async (req, res) => {
@@ -85,17 +85,31 @@ async function run() {
       res.json(result)
     })
 
-    app.patch('/api/user/upgrade-primium/:email', async (req, res) => {
-      const { email } = req.params;
-      const result = await userCollection.updateOne(
-        { email },
+    app.post('/subscriptions', async (req, res) => {
+      const { sessionId, userId, priceId, userEmail,userName } = req.body;
+
+      const isExist=await subscriptionsCollection.findOne({sessionId})
+      if(isExist){
+        return res.json({msg:'already Exists'})
+      }
+      await subscriptionsCollection.insertOne({
+        sessionId,
+        priceId,
+        userId,
+        userEmail,
+        userName,
+        Amouts:5,
+        date:new Date()
+      })
+      await userCollection.updateOne(
+        { _id: new ObjectId(userId) },
         {
           $set: {
             plan: 'pro'
           }
         }
       )
-      res.json(result)
+      res.json({ msg: 'payments Successful' })
     })
 
 
