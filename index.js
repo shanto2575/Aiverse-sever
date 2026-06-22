@@ -40,16 +40,41 @@ async function run() {
     const subscriptionsCollection = db.collection('payments')
 
     //........user.......
-    app.get('/api/user', async (req, res) => {
-      const result = await userCollection.find()
+    app.get('/api/user/:email', async (req, res) => {
+      const { email } = req.params;
+      const result = await userCollection.findOne({ email })
+      res.json(result)
     })
 
     //......prompts......
 
     app.get('/api/prompts', async (req, res) => {
-      const result = await promptsCollection.find().toArray()
+      const search = req.query.search;
+      const category = req.query.category;
+      const difficulty = req.query.difficulty;
+      const aiEngine = req.query.aiEngine;
+      const query = {};
+      if (search) {
+        query.title = {
+          $regex: search,
+          $options: "i"
+        };
+      }
+      if (category) {
+        // query.category = category;
+        query.category={$in:category.split(',')}
+      }
+      if (aiEngine) {
+        query.aiEngine = aiEngine;
+      }
+      if (difficulty) {
+        query.difficulty = difficulty;
+      }
+      const result = await promptsCollection.find(query).toArray()
       res.json(result)
     })
+
+    
     app.get('/api/single-prompts/:id', async (req, res) => {
       const { id } = req.params;
       const result = await promptsCollection.findOne({ _id: new ObjectId(id) })
@@ -81,7 +106,7 @@ async function run() {
         createdAt: new Date()
       };
       const result = await promptsCollection.insertOne(promptData);
-      
+
       await userCollection.updateOne(
         { email: data?.userEmail },
         {
