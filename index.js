@@ -28,6 +28,9 @@ const client = new MongoClient(uri, {
   },
 });
 
+
+
+
 async function run() {
   try {
     await client.connect();
@@ -38,7 +41,7 @@ async function run() {
 
     //........user.......
     app.get('/api/user', async (req, res) => {
-      const result = await userCollection.find
+      const result = await userCollection.find()
     })
 
     //......prompts......
@@ -61,7 +64,30 @@ async function run() {
 
     app.post("/api/prompts", async (req, res) => {
       const data = req.body;
-      const result = await promptsCollection.insertOne(data);
+      // console.log(data)
+      const user = await userCollection.findOne({ email: data?.userEmail })
+      // console.log(user)
+      const userPromptsCount = await promptsCollection.countDocuments({ userEmail: data?.userEmail })
+      // console.log(userPromptsCount)
+      if (!user) {
+        return res.status(404).send({ msg: "User not found" });
+      }
+
+      if (user.plan !== 'pro' && userPromptsCount >= 3) {
+        return res.status(401).send({ msg: 'Your Free Limit is Over!' })
+      }
+      const promptData = {
+        ...data,
+        createdAt: new Date()
+      };
+      const result = await promptsCollection.insertOne(promptData);
+      
+      await userCollection.updateOne(
+        { email: data?.userEmail },
+        {
+          $inc: { promptCount: 1 }
+        }
+      );
       res.json(result);
     });
 
@@ -86,11 +112,11 @@ async function run() {
     })
 
     app.post('/subscriptions', async (req, res) => {
-      const { sessionId, userId, priceId, userEmail,userName } = req.body;
+      const { sessionId, userId, priceId, userEmail, userName } = req.body;
 
-      const isExist=await subscriptionsCollection.findOne({sessionId})
-      if(isExist){
-        return res.json({msg:'already Exists'})
+      const isExist = await subscriptionsCollection.findOne({ sessionId })
+      if (isExist) {
+        return res.json({ msg: 'already Exists' })
       }
       await subscriptionsCollection.insertOne({
         sessionId,
@@ -98,8 +124,8 @@ async function run() {
         userId,
         userEmail,
         userName,
-        Amouts:5,
-        date:new Date()
+        Amouts: 5,
+        date: new Date()
       })
       await userCollection.updateOne(
         { _id: new ObjectId(userId) },
