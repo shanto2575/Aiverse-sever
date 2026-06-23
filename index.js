@@ -38,6 +38,7 @@ async function run() {
     const userCollection = db.collection('user')
     const subscriptionsCollection = db.collection('payments')
     const bookmarksCollection = db.collection("bookmarks");
+    const reviewsCollection = db.collection("reviews");
 
     //........user.......
     app.get('/api/user/:email', async (req, res) => {
@@ -185,7 +186,7 @@ async function run() {
         const result = await bookmarksCollection.insertOne({
           userEmail,
           promptId,
-          prompt, 
+          prompt,
           createdAt: new Date(),
         });
 
@@ -242,6 +243,134 @@ async function run() {
         res.status(500).json({ error: err.message });
       }
     });
+
+    //...................copy..............
+
+
+    app.patch("/api/prompts/copy/:id", async (req, res) => {
+      try {
+        const { id } = req.params;
+
+        const result = await promptsCollection.updateOne(
+          { _id: new ObjectId(id) },
+          {
+            $inc: {
+              copies: 1
+            }
+          }
+        );
+
+        res.json(result);
+      } catch (err) {
+        res.status(500).json({
+          error: err.message
+        });
+      }
+    });
+
+
+    //............reviews...................
+
+    app.get("/api/reviews/:promptId", async (req, res) => {
+      try {
+        const { promptId } = req.params;
+
+        const reviews = await reviewsCollection
+          .find({ promptId })
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        const totalReviews = reviews.length;
+
+        const averageRating =
+          totalReviews > 0
+            ? (
+              reviews.reduce((sum, r) => sum + Number(r.rating), 0) /
+              totalReviews
+            ).toFixed(1)
+            : 0;
+
+        res.json({
+          reviews,
+          totalReviews,
+          averageRating: Number(averageRating),
+        });
+
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    app.post("/api/reviews", async (req, res) => {
+      try {
+        const { promptId, userEmail, rating, comment } = req.body;
+
+        if (!promptId || !userEmail || !rating || !comment) {
+          return res.status(400).json({ message: "Missing fields" });
+        }
+
+        const promptObjectId = new ObjectId(promptId);
+
+        const existing = await reviewsCollection.findOne({
+          promptId,
+          userEmail,
+        });
+
+        await reviewsCollection.updateOne(
+          { promptId, userEmail },
+          {
+            $set: {
+              rating,
+              comment,
+              updatedAt: new Date(),
+            },
+            $setOnInsert: {
+              createdAt: new Date(),
+            },
+          },
+          { upsert: true }
+        );
+
+        const allReviews = await reviewsCollection
+          .find({ promptId })
+          .toArray();
+
+        const totalReviews = allReviews.length;
+
+        const averageRating =
+          totalReviews > 0
+            ? allReviews.reduce((sum, r) => sum + Number(r.rating), 0) /
+            totalReviews
+            : 0;
+
+        await promptsCollection.updateOne(
+          { _id: promptObjectId },
+          {
+            $set: {
+              totalReviews,
+              averageRating: Number(averageRating.toFixed(1)),
+            },
+          }
+        );
+
+        const review = await reviewsCollection.findOne({
+          promptId,
+          userEmail,
+        });
+
+        res.json({
+          review,
+          totalReviews,
+          averageRating: Number(averageRating.toFixed(1)),
+        });
+
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+
+
 
 
 
