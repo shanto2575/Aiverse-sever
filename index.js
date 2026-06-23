@@ -39,6 +39,7 @@ async function run() {
     const subscriptionsCollection = db.collection('payments')
     const bookmarksCollection = db.collection("bookmarks");
     const reviewsCollection = db.collection("reviews");
+    const reportsCollection = db.collection("reports");
 
     //........user.......
     app.get('/api/user/:email', async (req, res) => {
@@ -189,6 +190,11 @@ async function run() {
           prompt,
           createdAt: new Date(),
         });
+        const promptObjectId = new ObjectId(promptId);
+        await promptsCollection.updateOne(
+          { _id: promptObjectId },
+          { $inc: { bookmarkCount: 1 } }
+        );
 
         res.json(result);
       } catch (err) {
@@ -205,8 +211,18 @@ async function run() {
           userEmail,
           promptId,
         });
+        if (result.deletedCount > 0) {
+          await promptsCollection.updateOne(
+            { _id: promptObjectId },
+            {
+              $inc: {
+                bookmarkCount: -1
+              }
+            }
+          );
+        }
 
-        res.json(result);
+        res.json({ message: "Bookmark removed" });
       } catch (err) {
         res.status(500).json({ error: err.message });
       }
@@ -271,6 +287,36 @@ async function run() {
 
     //............reviews...................
 
+    app.get("/api/user-reviews/:email", async (req, res) => {
+      try {
+        const { email } = req.params;
+
+        const reviews = await reviewsCollection
+          .find({ userEmail: email })
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        const totalReviews = reviews.length;
+
+        const averageRating =
+          totalReviews > 0
+            ? (
+              reviews.reduce((sum, r) => sum + Number(r.rating), 0) /
+              totalReviews
+            ).toFixed(1)
+            : 0;
+
+        res.json({
+          reviews,
+          totalReviews,
+          averageRating: Number(averageRating),
+        });
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+
     app.get("/api/reviews/:promptId", async (req, res) => {
       try {
         const { promptId } = req.params;
@@ -303,7 +349,7 @@ async function run() {
 
     app.post("/api/reviews", async (req, res) => {
       try {
-        const { promptId, userEmail, rating, comment } = req.body;
+        const { promptId, userEmail, rating, comment, promptTitle, promptaiEngine } = req.body;
 
         if (!promptId || !userEmail || !rating || !comment) {
           return res.status(400).json({ message: "Missing fields" });
@@ -322,6 +368,8 @@ async function run() {
             $set: {
               rating,
               comment,
+              promptTitle,
+              promptaiEngine,
               updatedAt: new Date(),
             },
             $setOnInsert: {
@@ -366,6 +414,101 @@ async function run() {
 
       } catch (err) {
         res.status(500).json({ error: err.message });
+      }
+    });
+
+
+    //......................reports............................
+
+
+    app.get("/api/reports", async (req, res) => {
+      try {
+        const reports = await reportsCollection
+          .find()
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        res.json(reports);
+      } catch (error) {
+        res.status(500).json({ message: error.message });
+      }
+    });
+
+    app.post("/api/reports", async (req, res) => {
+      try {
+        const { promptId, userEmail, reason, description } = req.body;
+
+        if (!promptId || !userEmail || !reason) {
+          return res.status(400).json({ message: "Missing required fields" });
+        }
+
+        const reportData = {
+          promptId,
+          userEmail,
+          reason,
+          description: description || "",
+          status: "pending",
+          createdAt: new Date(),
+        };
+
+        const result = await reportsCollection.insertOne(reportData);
+
+        res.status(201).json({
+          message: "Report submitted successfully",
+          insertedId: result.insertedId,
+        });
+      } catch (error) {
+        res.status(500).json({ message: error.message });
+      }
+    });
+
+    app.get("/api/reports/:promptId", async (req, res) => {
+      try {
+        const { promptId } = req.params;
+
+        const reports = await reportsCollection
+          .find({ promptId })
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        res.json(reports);
+      } catch (error) {
+        res.status(500).json({ message: error.message });
+      }
+    });
+
+    app.patch("/api/reports/:id", async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { status } = req.body;
+
+        const result = await reportsCollection.updateOne(
+          { _id: new ObjectId(id) },
+          {
+            $set: {
+              status,
+              updatedAt: new Date(),
+            },
+          }
+        );
+
+        res.json(result);
+      } catch (error) {
+        res.status(500).json({ message: error.message });
+      }
+    });
+
+    app.delete("/api/reports/:id", async (req, res) => {
+      try {
+        const { id } = req.params;
+
+        const result = await reportsCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+
+        res.json(result);
+      } catch (error) {
+        res.status(500).json({ message: error.message });
       }
     });
 
