@@ -30,7 +30,6 @@ const client = new MongoClient(uri, {
 
 
 
-
 async function run() {
   try {
     await client.connect();
@@ -38,6 +37,7 @@ async function run() {
     const promptsCollection = db.collection("prompts");
     const userCollection = db.collection('user')
     const subscriptionsCollection = db.collection('payments')
+    const bookmarksCollection = db.collection("bookmarks");
 
     //........user.......
     app.get('/api/user/:email', async (req, res) => {
@@ -62,7 +62,7 @@ async function run() {
       }
       if (category) {
         // query.category = category;
-        query.category={$in:category.split(',')}
+        query.category = { $in: category.split(',') }
       }
       if (aiEngine) {
         query.aiEngine = aiEngine;
@@ -74,7 +74,7 @@ async function run() {
       res.json(result)
     })
 
-    
+
     app.get('/api/single-prompts/:id', async (req, res) => {
       const { id } = req.params;
       const result = await promptsCollection.findOne({ _id: new ObjectId(id) })
@@ -162,6 +162,86 @@ async function run() {
       )
       res.json({ msg: 'payments Successful' })
     })
+
+    //........bookmarks....................................................
+
+    app.post("/api/bookmarks", async (req, res) => {
+      try {
+        const { userEmail, promptId, prompt } = req.body;
+
+        if (!userEmail || !promptId) {
+          return res.status(400).json({ message: "Missing data" });
+        }
+
+        const exists = await bookmarksCollection.findOne({
+          userEmail,
+          promptId,
+        });
+
+        if (exists) {
+          return res.json({ message: "Already bookmarked" });
+        }
+
+        const result = await bookmarksCollection.insertOne({
+          userEmail,
+          promptId,
+          prompt, 
+          createdAt: new Date(),
+        });
+
+        res.json(result);
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+
+    app.delete("/api/bookmarks", async (req, res) => {
+      try {
+        const { userEmail, promptId } = req.query;
+
+        const result = await bookmarksCollection.deleteOne({
+          userEmail,
+          promptId,
+        });
+
+        res.json(result);
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    app.get("/api/bookmarks/:email", async (req, res) => {
+      try {
+        const { email } = req.params;
+
+        const result = await bookmarksCollection
+          .find({ userEmail: email })
+          .toArray();
+
+        res.send(result);
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+
+    app.get("/api/bookmarks/:userEmail/:promptId", async (req, res) => {
+      try {
+        const { userEmail, promptId } = req.params;
+
+        const bookmark = await bookmarksCollection.findOne({
+          userEmail,
+          promptId,
+        });
+
+        res.json({
+          bookmarked: !!bookmark,
+        });
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    });
 
 
 
