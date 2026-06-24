@@ -141,7 +141,6 @@ async function run() {
 
     app.delete("/api/admin/prompts/:id", async (req, res) => {
       const { id } = req.params;
-
       const result = await promptsCollection.deleteOne({
         _id: new ObjectId(id),
       });
@@ -155,6 +154,49 @@ async function run() {
         .toArray();
       res.json(result);
     });
+
+    //....admin.....reports........
+    app.get("/api/admin/reports", async (req, res) => {
+      const reports = await reportsCollection
+        .find()
+        .sort({ createdAt: -1 })
+        .toArray();
+      res.json(reports);
+    });
+
+    app.delete("/api/admin/reports/:id", async (req, res) => {
+      const { id } = req.params;
+
+      const result = await reportsCollection.deleteOne({
+        _id: new ObjectId(id),
+      });
+
+      res.json(result);
+    });
+
+    app.delete("/api/admin/reports/:id/remove-prompt", async (req, res) => {
+    const { id } = req.params;
+
+    const report = await reportsCollection.findOne({
+        _id: new ObjectId(id),
+    });
+
+    if (!report) {
+        return res.status(404).json({ message: "Report not found" });
+    }
+
+    await promptsCollection.deleteOne({
+        _id: new ObjectId(report.promptId),
+    });
+
+    await reportsCollection.deleteOne({
+        _id: new ObjectId(id),
+    });
+
+    res.json({
+        success: true,
+    });
+});
 
     //........user.......
     app.get('/api/user/:email', async (req, res) => {
@@ -534,7 +576,6 @@ async function run() {
 
 
     //......................reports............................
-
 
     app.get("/api/reports", async (req, res) => {
       try {
