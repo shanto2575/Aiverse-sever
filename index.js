@@ -175,28 +175,28 @@ async function run() {
     });
 
     app.delete("/api/admin/reports/:id/remove-prompt", async (req, res) => {
-    const { id } = req.params;
+      const { id } = req.params;
 
-    const report = await reportsCollection.findOne({
+      const report = await reportsCollection.findOne({
         _id: new ObjectId(id),
-    });
+      });
 
-    if (!report) {
+      if (!report) {
         return res.status(404).json({ message: "Report not found" });
-    }
+      }
 
-    await promptsCollection.deleteOne({
+      await promptsCollection.deleteOne({
         _id: new ObjectId(report.promptId),
-    });
+      });
 
-    await reportsCollection.deleteOne({
+      await reportsCollection.deleteOne({
         _id: new ObjectId(id),
-    });
+      });
 
-    res.json({
+      res.json({
         success: true,
+      });
     });
-});
 
     //........user.......
     app.get('/api/user/:email', async (req, res) => {
@@ -212,26 +212,47 @@ async function run() {
       const category = req.query.category;
       const difficulty = req.query.difficulty;
       const aiEngine = req.query.aiEngine;
-      const query = {};
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 6;
+
+      const query = {
+        status: "approved",
+      };
+
       if (search) {
         query.title = {
           $regex: search,
-          $options: "i"
+          $options: "i",
         };
       }
+
       if (category) {
-        // query.category = category;
-        query.category = { $in: category.split(',') }
+        query.category = { $in: category.split(",") };
       }
+
       if (aiEngine) {
         query.aiEngine = aiEngine;
       }
+
       if (difficulty) {
         query.difficulty = difficulty;
       }
-      const result = await promptsCollection.find(query).toArray()
-      res.json(result)
-    })
+
+      const total = await promptsCollection.countDocuments(query);
+
+      const prompts = await promptsCollection
+        .find(query)
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .toArray();
+
+      res.json({
+        prompts,
+        total,
+        currentPage: page,
+        totalPages: Math.ceil(total / limit),
+      });
+    });
 
 
     app.get('/api/single-prompts/:id', async (req, res) => {
@@ -668,7 +689,6 @@ async function run() {
       }
     });
 
-
     //............creator..............
     app.get('/api/creator-prompts/:email', async (req, res) => {
       const { email } = req.params;
@@ -687,12 +707,123 @@ async function run() {
       });
     });
 
+    //.........Featured Section.............
 
+    app.get('/api/featuredSection', async (req, res) => {
+      const result = await promptsCollection
+        .find({ status: "approved" })
+        .limit(6)
+        .toArray();
 
+      res.json(result);
+    });
 
+    //.............top Creator............
 
+    app.get("/api/top-creators", async (req, res) => {
+      const result = await promptsCollection.aggregate([
+        {
+          $match: {
+            status: "approved"
+          }
+        },
+        {
+          $group: {
+            _id: "$userEmail",
+            totalPrompts: { $sum: 1 },
+            totalCopies: { $sum: "$copies" }
+          }
+        },
+        {
+          $sort: {
+            totalCopies: -1
+          }
+        },
+        {
+          $lookup: {
+            from: "user",
+            localField: "_id",
+            foreignField: "email",
+            as: "creator"
+          }
+        },
+        {
+          $unwind: "$creator"
+        },
+        {
+          $match: {
+            "creator.role": { $in: ["creator", "admin"] }
+          }
+        },
+        {
+          $limit: 3
+        },
+        {
+          $project: {
+            name: "$creator.name",
+            email: "$creator.email",
+            image: "$creator.image",
+            role: "$creator.role",
+            totalPrompts: 1,
+            totalCopies: 1
+          }
+        }
+      ]).toArray();
 
+      res.send(result);
+    });
 
+    app.get("/api/testimonials", async (req, res) => {
+      try {
+        const result = await reviewsCollection.aggregate([
+          {
+            $match: {
+              rating: { $gte: 4 }
+            }
+          },
+          {
+            $lookup: {
+              from: "user",
+              localField: "userEmail",
+              foreignField: "email",
+              as: "user"
+            }
+          },
+          {
+            $unwind: "$user"
+          },
+          {
+            $sort: {
+              rating: -1,
+              createdAt: -1
+            }
+          },
+          {
+            $limit: 6
+          },
+          {
+            $project: {
+              _id: 1,
+              comment: 1,
+              rating: 1,
+              promptTitle: 1,
+              promptaiEngine: 1,
+              createdAt: 1,
+
+              userName: "$user.name",
+              userEmail: "$user.email",
+              userImage: "$user.image",
+              userRole: "$user.role"
+            }
+          }
+        ]).toArray();
+
+        res.send(result);
+      } catch (error) {
+        console.log(error);
+        res.status(500).send({ message: "Server Error" });
+      }
+    });
 
 
     await client.db("admin").command({ ping: 1 });
