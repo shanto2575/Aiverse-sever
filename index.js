@@ -60,8 +60,8 @@ async function run() {
 
         const payments = await subscriptionsCollection.find().toArray();
         const totalRevenue = payments.reduce(
-            (sum, payment) => sum + (payment.Amouts || 0),
-            0
+          (sum, payment) => sum + (payment.Amouts || 0),
+          0
         );
 
         res.json({
@@ -78,6 +78,82 @@ async function run() {
         console.error(error);
         res.status(500).json({ message: "Failed to fetch admin analytics" });
       }
+    });
+
+    app.get('/api/admin/users', async (req, res) => {
+      const user = await userCollection.find().toArray()
+      res.json({ user })
+    })
+
+    app.patch("/api/admin/users/:id", async (req, res) => {
+      const { id } = req.params;
+      const { role } = req.body;
+
+      const result = await userCollection.updateOne(
+        { _id: new ObjectId(id) },
+        {
+          $set: {
+            role: role,
+          },
+        }
+      );
+      res.json(result);
+    });
+
+    app.delete("/api/admin/users/:id", async (req, res) => {
+      const { id } = req.params;
+      const result = await userCollection.deleteOne({
+        _id: new ObjectId(id),
+      });
+      res.json(result);
+    });
+
+    app.get("/api/admin/prompts", async (req, res) => {
+      const prompts = await promptsCollection.find().toArray();
+      res.json({ prompts });
+    });
+
+    app.patch("/api/admin/prompts/:id/approve", async (req, res) => {
+      const { id } = req.params;
+      const result = await promptsCollection.updateOne(
+        { _id: new ObjectId(id) },
+        {
+          $set: {
+            status: "approved",
+          },
+        }
+      );
+      res.json(result);
+    });
+
+    app.patch("/api/admin/prompts/:id/reject", async (req, res) => {
+      const { id } = req.params;
+      const result = await promptsCollection.updateOne(
+        { _id: new ObjectId(id) },
+        {
+          $set: {
+            status: "rejected",
+          },
+        }
+      );
+      res.json(result);
+    });
+
+    app.delete("/api/admin/prompts/:id", async (req, res) => {
+      const { id } = req.params;
+
+      const result = await promptsCollection.deleteOne({
+        _id: new ObjectId(id),
+      });
+      res.json(result);
+    });
+
+    app.get("/api/admin/payments", async (req, res) => {
+      const result = await subscriptionsCollection
+        .find()
+        .sort({ date: -1 })
+        .toArray();
+      res.json(result);
     });
 
     //........user.......
