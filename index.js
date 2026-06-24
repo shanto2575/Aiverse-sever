@@ -513,6 +513,25 @@ async function run() {
     });
 
 
+    //............creator..............
+    app.get('/api/creator-prompts/:email', async (req, res) => {
+      const { email } = req.params;
+
+      const totalPrompts = await promptsCollection.countDocuments({
+        userEmail: email
+      });
+
+      const prompts = await promptsCollection.find({
+        userEmail: email
+      }).toArray();
+
+      res.json({
+        totalPrompts,
+        prompts
+      });
+    });
+
+
 
 
 
