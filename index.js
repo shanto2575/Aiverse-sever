@@ -41,6 +41,45 @@ async function run() {
     const reviewsCollection = db.collection("reviews");
     const reportsCollection = db.collection("reports");
 
+
+    //..............admin..............
+
+    app.get("/api/admin/analytics", async (req, res) => {
+      try {
+        const totalUsers = await userCollection.countDocuments();
+        const totalPrompts = await promptsCollection.countDocuments();
+        const totalReviews = await reviewsCollection.countDocuments();
+        const totalReports = await reportsCollection.countDocuments();
+        const totalBookmarks = await bookmarksCollection.countDocuments();
+
+        const prompts = await promptsCollection.find().toArray();
+        const totalCopies = prompts.reduce(
+          (sum, prompt) => sum + (prompt.copies || 0),
+          0
+        );
+
+        const payments = await subscriptionsCollection.find().toArray();
+        const totalRevenue = payments.reduce(
+            (sum, payment) => sum + (payment.Amouts || 0),
+            0
+        );
+
+        res.json({
+          totalUsers,
+          totalPrompts,
+          totalReviews,
+          totalReports,
+          totalBookmarks,
+          totalCopies,
+          totalRevenue,
+          prompts
+        });
+      } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Failed to fetch admin analytics" });
+      }
+    });
+
     //........user.......
     app.get('/api/user/:email', async (req, res) => {
       const { email } = req.params;
@@ -530,6 +569,9 @@ async function run() {
         prompts
       });
     });
+
+
+
 
 
 
