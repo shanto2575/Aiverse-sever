@@ -5,6 +5,7 @@ const express = require("express");
 const dontenv = require("dotenv");
 const cors = require("cors");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const { createRemoteJWKSet, jwtVerify } = require('jose-cjs');
 dontenv.config();
 
 const uri = process.env.MONGODB_URI;
@@ -28,6 +29,36 @@ const client = new MongoClient(uri, {
   },
 });
 
+const JWKS = createRemoteJWKSet(new URL(`${process.env.CLIENT_URL}/api/auth/jwks`));
+
+const verifyToken = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  // console.log(authHeader,'auhtheader')
+
+  if (!authHeader || !authHeader.startsWith("Bearer")) {
+    return res.status(401).json({ msg: "Unauthorized" });
+  }
+
+  // ["Bearer", "xjasasdhsagdydsav"]
+
+  const token = authHeader.split(" ")[1];
+  // console.log(token,'servertoken')
+
+  if (!token) {
+    return res.status(401).json({ msg: "Unauthorized" });
+  }
+
+  try {
+    const { payload } = await jwtVerify(token, JWKS);
+    req.user = payload;
+    // console.log(payload)
+
+    next();
+  } catch (error) {
+    console.log(error);
+    return res.status(401).json({ msg: "Unauthorized" });
+  }
+};
 
 
 async function run() {
@@ -100,7 +131,7 @@ async function run() {
       res.json(result);
     });
 
-    app.delete("/api/admin/users/:id", async (req, res) => {
+    app.delete("/api/admin/users/:id",verifyToken, async (req, res) => {
       const { id } = req.params;
       const result = await userCollection.deleteOne({
         _id: new ObjectId(id),
@@ -113,7 +144,7 @@ async function run() {
       res.json({ prompts });
     });
 
-    app.patch("/api/admin/prompts/:id/approve", async (req, res) => {
+    app.patch("/api/admin/prompts/:id/approve",verifyToken, async (req, res) => {
       const { id } = req.params;
       const result = await promptsCollection.updateOne(
         { _id: new ObjectId(id) },
@@ -126,7 +157,7 @@ async function run() {
       res.json(result);
     });
 
-    app.patch("/api/admin/prompts/:id/reject", async (req, res) => {
+    app.patch("/api/admin/prompts/:id/reject",verifyToken, async (req, res) => {
       const { id } = req.params;
       const result = await promptsCollection.updateOne(
         { _id: new ObjectId(id) },
@@ -139,7 +170,7 @@ async function run() {
       res.json(result);
     });
 
-    app.delete("/api/admin/prompts/:id", async (req, res) => {
+    app.delete("/api/admin/prompts/:id",verifyToken, async (req, res) => {
       const { id } = req.params;
       const result = await promptsCollection.deleteOne({
         _id: new ObjectId(id),
@@ -164,7 +195,7 @@ async function run() {
       res.json(reports);
     });
 
-    app.delete("/api/admin/reports/:id", async (req, res) => {
+    app.delete("/api/admin/reports/:id",verifyToken, async (req, res) => {
       const { id } = req.params;
 
       const result = await reportsCollection.deleteOne({
@@ -174,7 +205,7 @@ async function run() {
       res.json(result);
     });
 
-    app.delete("/api/admin/reports/:id/remove-prompt", async (req, res) => {
+    app.delete("/api/admin/reports/:id/remove-prompt",verifyToken, async (req, res) => {
       const { id } = req.params;
 
       const report = await reportsCollection.findOne({
@@ -267,7 +298,7 @@ async function run() {
       res.json(result)
     })
 
-    app.post("/api/prompts", async (req, res) => {
+    app.post("/api/prompts",verifyToken, async (req, res) => {
       const data = req.body;
       // console.log(data)
       const user = await userCollection.findOne({ email: data?.userEmail })
@@ -296,7 +327,7 @@ async function run() {
       res.json(result);
     });
 
-    app.patch('/api/prompts/:id', async (req, res) => {
+    app.patch('/api/prompts/:id',verifyToken, async (req, res) => {
       const { id } = req.params;
       const data = req.body;
       const result = await promptsCollection.updateOne(
@@ -310,7 +341,7 @@ async function run() {
       res.json(result)
     })
 
-    app.delete('/api/prompts/:id', async (req, res) => {
+    app.delete('/api/prompts/:id',verifyToken, async (req, res) => {
       const { id } = req.params;
       const result = await promptsCollection.deleteOne({ _id: new ObjectId(id) })
       res.json(result)
@@ -389,13 +420,16 @@ async function run() {
           userEmail,
           promptId,
         });
+
         if (result.deletedCount > 0) {
+          const promptObjectId = new ObjectId(promptId);
+
           await promptsCollection.updateOne(
             { _id: promptObjectId },
             {
               $inc: {
-                bookmarkCount: -1
-              }
+                bookmarkCount: -1,
+              },
             }
           );
         }
@@ -405,6 +439,7 @@ async function run() {
         res.status(500).json({ error: err.message });
       }
     });
+
 
     app.get("/api/bookmarks/:email", async (req, res) => {
       try {
